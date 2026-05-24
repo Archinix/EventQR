@@ -7,7 +7,7 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="350dp"
+        android:layout_height="420dp"
         android:background="@drawable/background_gradient"
         android:gravity="center"
         android:orientation="vertical"
@@ -40,6 +40,19 @@
             android:elevation="6dp"
             android:layout_marginBottom="20dp"
             android:layout_marginTop="20dp"/>
+
+        <Button
+            android:id="@+id/btnRegister"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginBottom="24dp"
+            android:background="@drawable/button_rounded"
+            android:elevation="6dp"
+            android:text="Create Account"
+            android:textAllCaps="false"
+            android:textColor="#FFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
     </LinearLayout>
 
@@ -131,20 +144,6 @@
                 android:textSize="10dp" />
 
         </LinearLayout>
-
-        <Button
-            android:id="@+id/btnCreateAccount"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_marginBottom="24dp"
-            android:background="@drawable/button_rounded"
-            android:elevation="6dp"
-            android:text="Create Account"
-            android:textAllCaps="false"
-            android:textColor="#FFFF"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginTop="50dp"/>
 
     </LinearLayout>
 
