@@ -2,7 +2,6 @@ package com.thedavelopers.eventqr.features.reports.controller;
 
 import java.util.UUID;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,10 +11,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.thedavelopers.eventqr.features.organizer.model.dto.OrganizerDtos.OrganizerReportResponse;
 import com.thedavelopers.eventqr.features.organizer.service.OrganizerService;
-import com.thedavelopers.eventqr.features.reports.service.ReportService;
 import com.thedavelopers.eventqr.features.reports.model.dto.EventReportSnapshot;
+import com.thedavelopers.eventqr.features.reports.service.ReportService;
 import com.thedavelopers.eventqr.shared.response.ApiResponse;
 import com.thedavelopers.eventqr.shared.security.JwtService;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/v1/organizer/events/{eventId}/reports")
