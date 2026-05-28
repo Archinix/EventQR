@@ -9,6 +9,8 @@ data class OrganizerTransactionRuleDto(
     val scanPurposeId: UUID,
     val active: Boolean = true,
     val allowDuplicate: Boolean = false,
+    val duplicateWindowMinutes: Int = 0,
+    val maxUsesPerRegistration: Int = 1,
     val requiresStaffAssignment: Boolean = true,
     val pointsAwarded: Int = 0,
     val createdAt: Instant? = null,
@@ -19,6 +21,8 @@ data class TransactionRuleRequest(
     val scanPurposeId: UUID,
     val active: Boolean,
     val allowDuplicate: Boolean,
+    val duplicateWindowMinutes: Int = 0,
+    val maxUsesPerRegistration: Int = 1,
     val requiresStaffAssignment: Boolean,
     val pointsAwarded: Int,
 )

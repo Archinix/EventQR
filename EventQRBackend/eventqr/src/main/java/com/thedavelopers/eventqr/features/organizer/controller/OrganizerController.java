@@ -43,6 +43,11 @@ public class OrganizerController {
         return ResponseEntity.ok(ApiResponse.success(organizerService.listEvents(currentUserId(request))));
     }
 
+    @GetMapping("/dashboard")
+    public ResponseEntity<ApiResponse<OrganizerDashboardResponse>> dashboard(HttpServletRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(organizerService.dashboard(currentUserId(request))));
+    }
+
     @GetMapping("/events/{eventId}")
     public ResponseEntity<ApiResponse<OrganizerEventResponse>> event(HttpServletRequest request,
                                                                      @PathVariable UUID eventId) {
@@ -65,8 +70,8 @@ public class OrganizerController {
     }
 
     @GetMapping("/events/{eventId}/dashboard")
-    public ResponseEntity<ApiResponse<OrganizerDashboardResponse>> dashboard(HttpServletRequest request,
-                                                                             @PathVariable UUID eventId) {
+    public ResponseEntity<ApiResponse<OrganizerDashboardResponse>> eventDashboard(HttpServletRequest request,
+                                                                                  @PathVariable UUID eventId) {
         return ResponseEntity.ok(ApiResponse.success(organizerService.dashboard(currentUserId(request), eventId)));
     }
 
@@ -115,6 +120,12 @@ public class OrganizerController {
     @GetMapping("/events/{eventId}/reports")
     public ResponseEntity<ApiResponse<OrganizerReportResponse>> reports(HttpServletRequest request,
                                                                         @PathVariable UUID eventId) {
+        return ResponseEntity.ok(ApiResponse.success(organizerService.report(currentUserId(request), eventId)));
+    }
+
+    @GetMapping("/events/{eventId}/reports/summary")
+    public ResponseEntity<ApiResponse<OrganizerReportResponse>> reportSummary(HttpServletRequest request,
+                                                                              @PathVariable UUID eventId) {
         return ResponseEntity.ok(ApiResponse.success(organizerService.report(currentUserId(request), eventId)));
     }
 
@@ -214,17 +225,26 @@ public class OrganizerController {
             }
 
         @GetMapping("/events/{eventId}/transaction-rules")
-        public ResponseEntity<ApiResponse<List<com.thedavelopers.eventqr.features.transactions.model.entity.TransactionRule>>> transactionRules(HttpServletRequest request,
+        public ResponseEntity<ApiResponse<List<OrganizerTransactionRuleResponse>>> transactionRules(HttpServletRequest request,
                                                                         @PathVariable UUID eventId) {
         return ResponseEntity.ok(ApiResponse.success(organizerService.listTransactionRules(currentUserId(request), eventId)));
         }
 
         @PutMapping("/events/{eventId}/transaction-rules")
-        public ResponseEntity<ApiResponse<com.thedavelopers.eventqr.features.transactions.model.entity.TransactionRule>> updateTransactionRule(HttpServletRequest request,
+        public ResponseEntity<ApiResponse<OrganizerTransactionRuleResponse>> updateTransactionRule(HttpServletRequest request,
                                                                           @PathVariable UUID eventId,
                                                                           @Valid @RequestBody TransactionRuleRequest body) {
         return ResponseEntity.ok(ApiResponse.success("Transaction rule saved",
             organizerService.saveTransactionRule(currentUserId(request), eventId, body)));
+        }
+
+        @PatchMapping("/events/{eventId}/transaction-rules/{ruleId}")
+        public ResponseEntity<ApiResponse<OrganizerTransactionRuleResponse>> patchTransactionRule(HttpServletRequest request,
+                                                                          @PathVariable UUID eventId,
+                                                                          @PathVariable UUID ruleId,
+                                                                          @Valid @RequestBody TransactionRuleRequest body) {
+        return ResponseEntity.ok(ApiResponse.success("Transaction rule saved",
+            organizerService.saveTransactionRule(currentUserId(request), eventId, ruleId, body)));
         }
 
         @GetMapping("/events/{eventId}/reward-settings")

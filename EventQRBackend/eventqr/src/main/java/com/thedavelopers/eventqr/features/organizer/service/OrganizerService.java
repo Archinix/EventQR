@@ -83,8 +83,7 @@ public class OrganizerService {
     public List<OrganizerEventResponse> listEvents(UUID organizerUserId) {
         return eventRepository.findByOrganizerUserId(organizerUserId).stream()
                 .filter(event -> event.getStatus() == EventStatus.APPROVED || event.getStatus() == EventStatus.ACTIVE
-                        || event.getStatus() == EventStatus.ENDED || event.getStatus() == EventStatus.PENDING_REVIEW
-                        || event.getStatus() == EventStatus.REJECTED)
+                        || event.getStatus() == EventStatus.ENDED)
                 .map(this::toOrganizerEvent)
                 .toList();
     }
@@ -105,7 +104,6 @@ public class OrganizerService {
         event.setEventEndAt(request.eventEndAt());
         event.setCapacity(request.capacity());
         event.setRewardsEnabled(Boolean.TRUE.equals(request.rewardsEnabled()));
-        event.setOrganizerUserId(request.organizerUserId());
         return new EventResponse(eventRepository.save(event).getId(), event.getTitle(), event.getDescription(), event.getLocation(),
                 event.getRegistrationOpenAt(), event.getRegistrationCloseAt(), event.getEventStartAt(), event.getEventEndAt(),
                 event.getCapacity(), event.getCurrentAttendeeCount(), event.getStatus(), event.isRewardsEnabled(),
@@ -131,8 +129,28 @@ public class OrganizerService {
     }
 
     @Transactional(readOnly = true)
+    public OrganizerDashboardResponse dashboard(UUID organizerUserId) {
+        UserProfile organizer = userProfileRepository.findById(organizerUserId)
+                .orElseThrow(() -> new ForbiddenException("Organizer account not found"));
+        List<OrganizerEventResponse> events = listEvents(organizerUserId);
+        long totalAttendees = events.stream().mapToLong(OrganizerEventResponse::registeredCount).sum();
+        long totalTransactions = events.stream().mapToLong(OrganizerEventResponse::totalTransactions).sum();
+        long totalPoints = events.stream().mapToLong(OrganizerEventResponse::totalPointsAwarded).sum();
+        long rewardEvents = events.stream().filter(event -> "Enabled".equalsIgnoreCase(event.rewardsStatus())).count();
+        OrganizerEventResponse firstEvent = events.isEmpty() ? null : events.get(0);
+        return new OrganizerDashboardResponse(organizer.getId(), organizer.getFullName(), organizer.getEmail(), null,
+                events.size(), totalAttendees, totalTransactions, totalPoints,
+                rewardEvents == 0 ? "Rewards not configured" : rewardEvents + " event(s) with rewards enabled",
+                events.stream().limit(5).toList(), firstEvent);
+    }
+
+    @Transactional(readOnly = true)
     public OrganizerDashboardResponse dashboard(UUID organizerUserId, UUID eventId) {
-        return new OrganizerDashboardResponse(toOrganizerEvent(requireOrganizerEvent(organizerUserId, eventId)));
+        OrganizerDashboardResponse summary = dashboard(organizerUserId);
+        return new OrganizerDashboardResponse(summary.organizerUserId(), summary.organizerName(), summary.organizerEmail(),
+                summary.organization(), summary.totalEvents(), summary.totalAttendees(), summary.totalTransactions(),
+                summary.totalPointsAwarded(), summary.rewardsSummary(), summary.recentEvents(),
+                toOrganizerEvent(requireOrganizerEvent(organizerUserId, eventId)));
     }
 
     @Transactional(readOnly = true)
@@ -208,6 +226,9 @@ public class OrganizerService {
         List<TransactionLog> transactions = transactionLogRepository.findByEventId(eventId);
         long registered = registrations.size();
         long entered = registrations.stream().filter(reg -> reg.getStatus() == RegistrationStatus.ENTERED).count();
+        long exited = registrations.stream().filter(reg -> reg.getStatus() == RegistrationStatus.EXITED).count();
+        long attendance = transactions.stream().filter(tx -> tx.getTransactionResult() == TransactionResult.APPROVED
+                && tx.getTransactionType() == TransactionType.ATTENDANCE).count();
         long noShows = registrations.stream().filter(reg -> reg.getStatus() == RegistrationStatus.NO_SHOW).count();
         long points = pointTransactionRepository.findByEventId(eventId).stream()
                 .mapToLong(com.thedavelopers.eventqr.features.rewards.model.entity.PointTransaction::getPointsChanged)
@@ -223,19 +244,22 @@ public class OrganizerService {
                 + countApproved(transactions, TransactionType.REWARD_REDEMPTION)
                 + countApproved(transactions, TransactionType.REWARD_REDEMPTION_SCAN);
         long rejected = transactions.stream().filter(tx -> tx.getTransactionResult() == TransactionResult.REJECTED).count();
-        return new OrganizerReportResponse(eventId, registered, entered, noShows, points, benefitClaims, boothVisits,
-                redemptions, rejected,
+        long approved = transactions.stream().filter(tx -> tx.getTransactionResult() == TransactionResult.APPROVED).count();
+        return new OrganizerReportResponse(eventId, registered, entered, exited, attendance, noShows, approved, rejected,
+                points, benefitClaims, boothVisits, redemptions, rejected,
                 List.of(new ReportRow("Entry Scans", String.valueOf(countApproved(transactions, TransactionType.ENTRY))),
                         new ReportRow("Exit Scans", String.valueOf(countApproved(transactions, TransactionType.EXIT))),
-                        new ReportRow("Attendance Scans", String.valueOf(countApproved(transactions, TransactionType.ATTENDANCE))),
+                        new ReportRow("Attendance Scans", String.valueOf(attendance)),
+                        new ReportRow("Approved Scans", String.valueOf(approved)),
                         new ReportRow("Rejected Scans", String.valueOf(rejected))),
                 List.of(new ReportRow("Registered", String.valueOf(registered)),
                         new ReportRow("Checked In / Entered", String.valueOf(entered)),
-                        new ReportRow("Exited", String.valueOf(registrations.stream().filter(reg -> reg.getStatus() == RegistrationStatus.EXITED).count())),
+                        new ReportRow("Exited", String.valueOf(exited)),
+                        new ReportRow("Attendance Count", String.valueOf(attendance)),
                         new ReportRow("No Shows", String.valueOf(noShows))),
                 List.of(new ReportRow("Wrong event QR", String.valueOf(countRejectedReason(transactions, "Wrong event QR"))),
                         new ReportRow("Duplicate scans", String.valueOf(countRejectedReason(transactions, "Duplicate"))),
-                        new ReportRow("Other rejected scans", String.valueOf(rejected))),
+                        new ReportRow("Other rejected scans", String.valueOf(countOtherRejected(transactions)))),
                 List.of(new ReportRow("Points distributed", String.valueOf(points)),
                         new ReportRow("Benefit claims", String.valueOf(benefitClaims)),
                         new ReportRow("Reward redemptions", String.valueOf(redemptions))),
@@ -348,6 +372,15 @@ public class OrganizerService {
                 ? scanPurposeRepository.findByEventIdAndCode(eventId, request.code()).orElseGet(ScanPurpose::new)
                 : scanPurposeRepository.findById(request.scanPurposeId())
                         .orElseThrow(() -> new ResourceNotFoundException("Scan purpose not found"));
+        if (purpose.getId() != null && !purpose.getEventId().equals(eventId)) {
+            throw new ResourceNotFoundException("Scan purpose not found for event");
+        }
+        UUID existingPurposeId = purpose.getId();
+        scanPurposeRepository.findByEventIdAndCode(eventId, request.code())
+                .filter(existing -> existingPurposeId == null || !existing.getId().equals(existingPurposeId))
+                .ifPresent(existing -> {
+                    throw new ConflictException("Scan purpose code already exists for this event");
+                });
         purpose.setEventId(eventId);
         purpose.setName(request.title());
         purpose.setCode(request.code());
@@ -429,15 +462,30 @@ public class OrganizerService {
         return toScanPurpose(purpose);
     }
 
-    public List<TransactionRule> listTransactionRules(UUID organizerUserId, UUID eventId) {
+    public List<OrganizerTransactionRuleResponse> listTransactionRules(UUID organizerUserId, UUID eventId) {
         requireOrganizerEvent(organizerUserId, eventId);
-        return transactionRuleRepository.findByEventId(eventId);
+        return transactionRuleRepository.findByEventId(eventId).stream().map(this::toTransactionRule).toList();
     }
 
-    public TransactionRule saveTransactionRule(UUID organizerUserId, UUID eventId, TransactionRuleRequest request) {
+    public OrganizerTransactionRuleResponse saveTransactionRule(UUID organizerUserId, UUID eventId, TransactionRuleRequest request) {
+        return saveTransactionRule(organizerUserId, eventId, null, request);
+    }
+
+    public OrganizerTransactionRuleResponse saveTransactionRule(UUID organizerUserId, UUID eventId, UUID ruleId, TransactionRuleRequest request) {
         requireOrganizerEvent(organizerUserId, eventId);
-        TransactionRule rule = transactionRuleRepository.findByEventIdAndScanPurposeId(eventId, request.scanPurposeId())
-                .orElseGet(TransactionRule::new);
+        ScanPurpose purpose = scanPurposeRepository.findById(request.scanPurposeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Scan purpose not found"));
+        if (!purpose.getEventId().equals(eventId)) {
+            throw new ResourceNotFoundException("Scan purpose not found for event");
+        }
+        TransactionRule rule = ruleId == null
+                ? transactionRuleRepository.findByEventIdAndScanPurposeId(eventId, request.scanPurposeId())
+                        .orElseGet(TransactionRule::new)
+                : transactionRuleRepository.findById(ruleId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Transaction rule not found"));
+        if (rule.getId() != null && !rule.getEventId().equals(eventId)) {
+            throw new ResourceNotFoundException("Transaction rule not found for event");
+        }
         rule.setEventId(eventId);
         rule.setScanPurposeId(request.scanPurposeId());
         rule.setActive(request.active());
@@ -446,7 +494,7 @@ public class OrganizerService {
         rule.setMaxUsesPerRegistration(normalizePositive(request.maxUsesPerRegistration(), 1));
         rule.setRequiresStaffAssignment(request.requiresStaffAssignment());
         rule.setPointsAwarded(request.pointsAwarded());
-        return transactionRuleRepository.save(rule);
+        return toTransactionRule(transactionRuleRepository.save(rule));
     }
 
     private int normalizeNonNegative(int value, int fallback) {
@@ -463,7 +511,7 @@ public class OrganizerService {
         UserProfile user = userProfileRepository.findById(organizerUserId)
                 .orElseThrow(() -> new ForbiddenException("Organizer account not found"));
         boolean owner = organizerUserId.equals(event.getOrganizerUserId());
-        if (!owner && user.getRole() != AccountRole.ADMIN) {
+        if (!owner) {
             throw new ForbiddenException("Organizer is not assigned to this event");
         }
         if (event.getStatus() != EventStatus.APPROVED && event.getStatus() != EventStatus.ACTIVE
@@ -478,9 +526,13 @@ public class OrganizerService {
         List<EventRegistration> registrations = registrationRepository.findByEventId(eventId);
         List<TransactionLog> transactions = transactionLogRepository.findByEventId(eventId);
         long redemptions = rewardRedemptionRepository.findByEventId(eventId).size();
+        int capacity = event.getCapacity() == null ? 0 : event.getCapacity();
+        int currentAttendeeCount = registrations.size();
         return new OrganizerEventResponse(eventId, event.getTitle(), "Organizer", formatRange(event.getEventStartAt(), event.getEventEndAt()),
                 format(event.getEventStartAt()), event.getLocation(), displayStatus(event.getStatus()),
-                format(event.getRegistrationOpenAt()), event.getRejectionReason(), List.of(), registrations.size(),
+                format(event.getRegistrationOpenAt()), event.getRejectionReason(), event.getDescription(),
+                event.getEventStartAt(), event.getEventEndAt(), event.getRegistrationOpenAt(), event.getRegistrationCloseAt(),
+                capacity, currentAttendeeCount, Math.max(0, capacity - currentAttendeeCount), List.of(), registrations.size(),
                 registrations.stream().filter(reg -> reg.getStatus() == RegistrationStatus.ENTERED).count(),
                 transactions.stream().filter(tx -> tx.getTransactionResult() == TransactionResult.APPROVED
                         && tx.getTransactionType() == TransactionType.ATTENDANCE).count(),
@@ -558,6 +610,13 @@ public class OrganizerService {
                 defaultRequiredSelection(purpose.getCode()));
     }
 
+    private OrganizerTransactionRuleResponse toTransactionRule(TransactionRule rule) {
+        return new OrganizerTransactionRuleResponse(rule.getId(), rule.getEventId(), rule.getScanPurposeId(),
+                rule.isActive(), rule.isAllowDuplicate(), rule.getDuplicateWindowMinutes(),
+                rule.getMaxUsesPerRegistration(), rule.isRequiresStaffAssignment(), rule.getPointsAwarded(),
+                rule.getCreatedAt(), rule.getUpdatedAt());
+    }
+
     private List<OrganizerScanPurposeResponse> defaultScanPurposes(UUID eventId) {
         return Arrays.stream(ScanPurposeCode.values())
                 .map(code -> new OrganizerScanPurposeResponse(null, eventId, defaultPurposeName(code),
@@ -604,6 +663,12 @@ public class OrganizerService {
     private long countRejectedReason(List<TransactionLog> transactions, String reason) {
         return transactions.stream().filter(tx -> tx.getTransactionResult() == TransactionResult.REJECTED
                 && tx.getReason() != null && tx.getReason().toLowerCase().contains(reason.toLowerCase())).count();
+    }
+
+    private long countOtherRejected(List<TransactionLog> transactions) {
+        long known = countRejectedReason(transactions, "Wrong event QR") + countRejectedReason(transactions, "Duplicate");
+        long rejected = transactions.stream().filter(tx -> tx.getTransactionResult() == TransactionResult.REJECTED).count();
+        return Math.max(0, rejected - known);
     }
 
     private List<String> splitPermissions(String permissions) {

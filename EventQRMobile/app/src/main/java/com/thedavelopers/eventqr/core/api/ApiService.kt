@@ -165,6 +165,9 @@ interface ApiService {
     @GET("organizer/events")
     suspend fun getOrganizerEvents(): ApiResponse<List<OrganizerEventDto>>
 
+    @GET("organizer/dashboard")
+    suspend fun getOrganizerDashboardSummary(): ApiResponse<OrganizerDashboardDto>
+
     @GET("organizer/events/{eventId}/dashboard")
     suspend fun getOrganizerDashboard(@Path("eventId") eventId: String): ApiResponse<OrganizerDashboardDto>
 

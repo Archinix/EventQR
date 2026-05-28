@@ -344,6 +344,11 @@ data class OrganizerMvpEvent(
     val rewardsStatus: String,
     val staffCount: Int,
     val scanPurposesCount: Int,
+    val description: String = "",
+    val registrationCloseDate: String = "-",
+    val capacity: Int = 0,
+    val currentAttendeeCount: Int = 0,
+    val availableSlots: Int = 0,
 )
 
 data class OrganizerMvpAttendee(

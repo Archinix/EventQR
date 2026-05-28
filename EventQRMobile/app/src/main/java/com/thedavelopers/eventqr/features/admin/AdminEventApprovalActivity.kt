@@ -30,7 +30,6 @@ import com.thedavelopers.eventqr.features.events.model.dto.EventRequestResponse
 import com.thedavelopers.eventqr.features.organizer.OrganizerMvpDataSource
 import com.thedavelopers.eventqr.features.organizer.OrganizerMvpEvent
 import com.thedavelopers.eventqr.features.organizer.OrganizerMvpLoad
-import com.thedavelopers.eventqr.features.organizer.OrganizerMvpPlaceholders
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -43,7 +42,7 @@ class AdminEventApprovalActivity : AppCompatActivity() {
     private lateinit var search: EditText
     private lateinit var statusSpinner: Spinner
     private var eventsSource: OrganizerMvpLoad<List<OrganizerMvpEvent>> =
-        OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, null)
+        OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, null)
 
     private val PRIMARY = Color.parseColor("#25215F")
     private val PURPLE = Color.parseColor("#5B25C9")
@@ -155,11 +154,11 @@ class AdminEventApprovalActivity : AppCompatActivity() {
                 is NetworkResult.Error -> {
                     OrganizerMvpLoad(
                         emptyList(),
-                        OrganizerMvpDataSource.MOCK,
+                        OrganizerMvpDataSource.ERROR,
                         result.message
                     )
                 }
-                NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK)
+                NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR)
             }
             render()
         }
@@ -426,7 +425,7 @@ class AdminEventApprovalActivity : AppCompatActivity() {
             elevation = 0f
             background = rounded(Color.parseColor("#FFF7ED"), 10, Color.parseColor("#FED7AA"))
             addView(text("Showing local demo data", 13, true, WARNING))
-            addView(text(load.message ?: OrganizerMvpPlaceholders.TODO_BACKEND, 12, false, MUTED))
+            addView(text(load.message ?: "Backend request failed. Showing an empty state.", 12, false, MUTED))
         }
 
     private fun createHeader(title: String, subtitle: String): LinearLayout =

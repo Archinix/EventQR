@@ -16,6 +16,14 @@ data class OrganizerEventDto(
     val status: String? = null,
     val submittedDate: String? = null,
     val adminRemarks: String? = null,
+    val description: String? = null,
+    val eventStartAt: Instant? = null,
+    val eventEndAt: Instant? = null,
+    val registrationOpenAt: Instant? = null,
+    val registrationCloseAt: Instant? = null,
+    val capacity: Int = 0,
+    val currentAttendeeCount: Int = 0,
+    val availableSlots: Int = 0,
     val additionalOrganizers: List<String> = emptyList(),
     val registeredCount: Int = 0,
     val enteredCount: Int = 0,
@@ -36,7 +44,17 @@ data class OrganizerEventDto(
 )
 
 data class OrganizerDashboardDto(
-    val event: OrganizerEventDto,
+    val organizerUserId: UUID? = null,
+    val organizerName: String? = null,
+    val organizerEmail: String? = null,
+    val organization: String? = null,
+    val totalEvents: Int = 0,
+    val totalAttendees: Int = 0,
+    val totalTransactions: Int = 0,
+    val totalPointsAwarded: Int = 0,
+    val rewardsSummary: String? = null,
+    val recentEvents: List<OrganizerEventDto> = emptyList(),
+    val event: OrganizerEventDto? = null,
 )
 
 data class OrganizerAttendeeDto(
@@ -84,7 +102,11 @@ data class OrganizerReportDto(
     val eventId: UUID,
     val totalRegistered: Int = 0,
     val enteredCount: Int = 0,
+    val exitedCount: Int = 0,
+    val attendanceCount: Int = 0,
     val noShowCount: Int = 0,
+    val approvedTransactionCount: Int = 0,
+    val rejectedTransactionCount: Int = 0,
     val pointsDistributed: Int = 0,
     val benefitClaims: Int = 0,
     val boothSessionVisits: Int = 0,
