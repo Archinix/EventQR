@@ -15,6 +15,7 @@ import com.thedavelopers.eventqr.features.events.model.dto.EventRequest
 import com.thedavelopers.eventqr.features.events.model.dto.EventResponse
 import com.thedavelopers.eventqr.features.notifications.model.dto.NotificationRequest
 import com.thedavelopers.eventqr.features.organizer.model.dto.OrganizerAttendeeDto
+import com.thedavelopers.eventqr.features.organizer.model.dto.OrganizerDashboardDto
 import com.thedavelopers.eventqr.features.organizer.model.dto.OrganizerEventDto
 import com.thedavelopers.eventqr.features.organizer.model.dto.OrganizerReportDto
 import com.thedavelopers.eventqr.features.organizer.model.dto.OrganizerScanPurposeDto
@@ -44,7 +45,7 @@ data class OrganizerMvpLoad<T>(
 
 enum class OrganizerMvpDataSource {
     BACKEND,
-    MOCK,
+    ERROR,
 }
 
 class OrganizerRepository(private val context: Context) {
@@ -102,40 +103,48 @@ class OrganizerRepository(private val context: Context) {
                 OrganizerMvpPlaceholders.cachedEvents = mapped
                 OrganizerMvpLoad(mapped, OrganizerMvpDataSource.BACKEND)
             }
-            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, result.message)
-            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, null)
+        }
+    }
+
+    suspend fun loadDashboardForMvp(): OrganizerMvpLoad<OrganizerDashboardDto?> {
+        return when (val result = fetchOrganizerDashboardSummary()) {
+            is NetworkResult.Success -> OrganizerMvpLoad(result.data, OrganizerMvpDataSource.BACKEND)
+            is NetworkResult.Error -> OrganizerMvpLoad(null, OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(null, OrganizerMvpDataSource.ERROR, null)
         }
     }
 
     suspend fun loadAttendeesForMvp(eventId: String): OrganizerMvpLoad<List<OrganizerMvpAttendee>> {
         return when (val result = fetchOrganizerAttendees(eventId)) {
             is NetworkResult.Success -> OrganizerMvpLoad(result.data.map { it.toMvpAttendee() }, OrganizerMvpDataSource.BACKEND)
-            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, result.message)
-            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, null)
         }
     }
 
     suspend fun loadTransactionsForMvp(eventId: String, eventTitle: String): OrganizerMvpLoad<List<OrganizerMvpTransaction>> {
         return when (val result = fetchOrganizerTransactions(eventId)) {
             is NetworkResult.Success -> OrganizerMvpLoad(result.data.map { it.toMvpTransaction(eventTitle) }, OrganizerMvpDataSource.BACKEND)
-            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, result.message)
-            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, null)
         }
     }
 
     suspend fun loadScanPurposesForMvp(eventId: String): OrganizerMvpLoad<List<OrganizerMvpScanPurpose>> {
         return when (val result = fetchOrganizerScanPurposes(eventId)) {
             is NetworkResult.Success -> OrganizerMvpLoad(result.data.map { it.toMvpScanPurpose() }, OrganizerMvpDataSource.BACKEND)
-            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, result.message)
-            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, null)
         }
     }
 
     suspend fun loadReportForMvp(event: OrganizerMvpEvent): OrganizerMvpLoad<OrganizerMvpEvent> {
         return when (val report = fetchOrganizerReport(event.id)) {
             is NetworkResult.Success -> OrganizerMvpLoad(event.fromOrganizerReport(report.data), OrganizerMvpDataSource.BACKEND)
-            is NetworkResult.Error -> mockLoad(event, report.message)
-            NetworkResult.Loading -> mockLoad(event, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(event, OrganizerMvpDataSource.ERROR, report.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(event, OrganizerMvpDataSource.ERROR, null)
         }
     }
 
@@ -145,16 +154,16 @@ class OrganizerRepository(private val context: Context) {
                 val mapped = result.data.map { it.toMvpStaff(event.title) }
                 OrganizerMvpLoad(mapped, OrganizerMvpDataSource.BACKEND)
             }
-            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, result.message)
-            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, null)
         }
     }
 
     suspend fun searchStaffUsersForMvp(query: String): OrganizerMvpLoad<List<OrganizerMvpStaff>> {
         return when (val result = searchOrganizerUsers(query)) {
             is NetworkResult.Success -> OrganizerMvpLoad(result.data.map { it.toAvailableStaff() }, OrganizerMvpDataSource.BACKEND)
-            is NetworkResult.Error -> mockLoad(searchAvailableStaffUsers(query), result.message)
-            NetworkResult.Loading -> mockLoad(searchAvailableStaffUsers(query), null)
+            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, null)
         }
     }
 
@@ -173,8 +182,8 @@ class OrganizerRepository(private val context: Context) {
         )
         return when (val result = addOrganizerStaff(event.id, request)) {
             is NetworkResult.Success -> OrganizerMvpLoad(result.data.toMvpStaff(event.title), OrganizerMvpDataSource.BACKEND)
-            is NetworkResult.Error -> mockLoad(staff.copy(assignedEventId = event.id, assignedEvent = event.title, accessStatus = "Active", addedDate = "Today"), result.message)
-            NetworkResult.Loading -> mockLoad(staff, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(staff, OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(staff, OrganizerMvpDataSource.ERROR, null)
         }
     }
 
@@ -191,16 +200,16 @@ class OrganizerRepository(private val context: Context) {
         )
         return when (val result = updateOrganizerStaff(event.id, staff.id, request)) {
             is NetworkResult.Success -> OrganizerMvpLoad(result.data.toMvpStaff(event.title), OrganizerMvpDataSource.BACKEND)
-            is NetworkResult.Error -> mockLoad(staff, result.message)
-            NetworkResult.Loading -> mockLoad(staff, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(staff, OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(staff, OrganizerMvpDataSource.ERROR, null)
         }
     }
 
     suspend fun removeStaffForMvp(event: OrganizerMvpEvent, staff: OrganizerMvpStaff): OrganizerMvpLoad<Unit> {
         return when (val result = removeOrganizerStaff(event.id, staff.id)) {
             is NetworkResult.Success -> OrganizerMvpLoad(Unit, OrganizerMvpDataSource.BACKEND)
-            is NetworkResult.Error -> mockLoad(Unit, result.message)
-            NetworkResult.Loading -> mockLoad(Unit, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(Unit, OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(Unit, OrganizerMvpDataSource.ERROR, null)
         }
     }
 
@@ -215,7 +224,7 @@ class OrganizerRepository(private val context: Context) {
             }
             when (result) {
                 is NetworkResult.Success -> saved.add(result.data.toMvpScanPurpose())
-                is NetworkResult.Error -> return OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, result.message)
+                is NetworkResult.Error -> return OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, result.message)
                 NetworkResult.Loading -> Unit
             }
         }
@@ -225,8 +234,8 @@ class OrganizerRepository(private val context: Context) {
     suspend fun loadTransactionRulesForMvp(eventId: String): OrganizerMvpLoad<List<OrganizerTransactionRuleDto>> {
         return when (val result = getTransactionRules(eventId)) {
             is NetworkResult.Success -> OrganizerMvpLoad(result.data, OrganizerMvpDataSource.BACKEND)
-            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, result.message)
-            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.MOCK, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(emptyList(), OrganizerMvpDataSource.ERROR, null)
         }
     }
 
@@ -236,8 +245,8 @@ class OrganizerRepository(private val context: Context) {
     ): OrganizerMvpLoad<OrganizerTransactionRuleDto> {
         return when (val result = saveTransactionRule(eventId, request)) {
             is NetworkResult.Success -> OrganizerMvpLoad(result.data, OrganizerMvpDataSource.BACKEND)
-            is NetworkResult.Error -> OrganizerMvpLoad(OrganizerTransactionRuleDto(eventId = UUID.fromString(eventId), scanPurposeId = request.scanPurposeId), OrganizerMvpDataSource.MOCK, result.message)
-            NetworkResult.Loading -> OrganizerMvpLoad(OrganizerTransactionRuleDto(eventId = UUID.fromString(eventId), scanPurposeId = request.scanPurposeId), OrganizerMvpDataSource.MOCK, null)
+            is NetworkResult.Error -> OrganizerMvpLoad(OrganizerTransactionRuleDto(eventId = UUID.fromString(eventId), scanPurposeId = request.scanPurposeId), OrganizerMvpDataSource.ERROR, result.message)
+            NetworkResult.Loading -> OrganizerMvpLoad(OrganizerTransactionRuleDto(eventId = UUID.fromString(eventId), scanPurposeId = request.scanPurposeId), OrganizerMvpDataSource.ERROR, null)
         }
     }
 
@@ -292,11 +301,9 @@ class OrganizerRepository(private val context: Context) {
         )
     }
 
-    private fun <T> mockLoad(data: T, message: String?): OrganizerMvpLoad<T> =
-        OrganizerMvpLoad(data, OrganizerMvpDataSource.MOCK, message ?: OrganizerMvpPlaceholders.TODO_BACKEND)
-
     suspend fun getEvents() = safeApiCall { apiService.getEvents() }
     suspend fun fetchOrganizerEvents() = safeApiCall { apiService.getOrganizerEvents() }
+    suspend fun fetchOrganizerDashboardSummary() = safeApiCall { apiService.getOrganizerDashboardSummary() }
     suspend fun fetchOrganizerDashboard(eventId: String) = safeApiCall { apiService.getOrganizerDashboard(eventId) }
     suspend fun fetchOrganizerAttendees(eventId: String) = safeApiCall { apiService.getOrganizerAttendees(eventId) }
     suspend fun fetchOrganizerTransactions(eventId: String) = safeApiCall { apiService.getOrganizerTransactions(eventId) }
@@ -388,6 +395,11 @@ private fun OrganizerEventDto.toMvpEvent(): OrganizerMvpEvent = OrganizerMvpEven
     rewardsStatus = rewardsStatus ?: "Not configured",
     staffCount = staffCount,
     scanPurposesCount = scanPurposesCount,
+    description = description.orEmpty(),
+    registrationCloseDate = DateFormatters.formatInstant(registrationCloseAt),
+    capacity = capacity,
+    currentAttendeeCount = currentAttendeeCount,
+    availableSlots = availableSlots,
 )
 
 private fun OrganizerAttendeeDto.toMvpAttendee(): OrganizerMvpAttendee = OrganizerMvpAttendee(
@@ -433,9 +445,12 @@ private fun OrganizerTransactionDto.toMvpTransaction(fallbackEventTitle: String)
 private fun OrganizerReportDto.toMvpEvent(base: OrganizerMvpEvent): OrganizerMvpEvent = base.copy(
     registeredCount = totalRegistered,
     enteredCount = enteredCount,
+    attendedCount = attendanceCount,
+    exitedCount = exitedCount,
     noShowCount = noShowCount,
-    totalTransactions = transactionSummary.sumOf { it.value.toIntOrNull() ?: 0 }.takeIf { it > 0 } ?: base.totalTransactions,
-    rejectedScans = rejectedScans,
+    totalTransactions = approvedTransactionCount + rejectedTransactionCount,
+    successfulScans = approvedTransactionCount,
+    rejectedScans = rejectedTransactionCount.takeIf { it > 0 } ?: rejectedScans,
     benefitClaims = benefitClaims,
     boothSessionVisits = boothSessionVisits,
     rewardRedemptions = rewardRedemptions,

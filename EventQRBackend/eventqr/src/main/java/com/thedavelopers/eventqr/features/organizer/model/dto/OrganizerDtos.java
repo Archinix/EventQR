@@ -18,7 +18,10 @@ public final class OrganizerDtos {
 
     public record OrganizerEventResponse(UUID eventId, String title, String organizerName, String dateTime,
                                          String shortDate, String venue, String status, String submittedDate,
-                                         String adminRemarks, List<String> additionalOrganizers, long registeredCount,
+                                         String adminRemarks, String description, Instant eventStartAt,
+                                         Instant eventEndAt, Instant registrationOpenAt, Instant registrationCloseAt,
+                                         int capacity, int currentAttendeeCount, int availableSlots,
+                                         List<String> additionalOrganizers, long registeredCount,
                                          long enteredCount, long attendedCount, long exitedCount, long noShowCount,
                                          long totalTransactions, long successfulScans, long rejectedScans,
                                          long benefitClaims, long boothSessionVisits, long rewardRedemptions,
@@ -26,7 +29,11 @@ public final class OrganizerDtos {
                                          long staffCount, long scanPurposesCount) {
     }
 
-    public record OrganizerDashboardResponse(OrganizerEventResponse event) {
+    public record OrganizerDashboardResponse(UUID organizerUserId, String organizerName, String organizerEmail,
+                                             String organization, long totalEvents, long totalAttendees,
+                                             long totalTransactions, long totalPointsAwarded,
+                                             String rewardsSummary, List<OrganizerEventResponse> recentEvents,
+                                             OrganizerEventResponse event) {
     }
 
     public record OrganizerAttendeeResponse(UUID attendeeId, UUID registrationId, UUID eventId, UUID qrCredentialId,
@@ -45,9 +52,11 @@ public final class OrganizerDtos {
                                                Instant createdTimestamp) {
     }
 
-    public record OrganizerReportResponse(UUID eventId, long totalRegistered, long enteredCount, long noShowCount,
-                                          long pointsDistributed, long benefitClaims, long boothSessionVisits,
-                                          long rewardRedemptions, long rejectedScans, List<ReportRow> transactionSummary,
+    public record OrganizerReportResponse(UUID eventId, long totalRegistered, long enteredCount, long exitedCount,
+                                          long attendanceCount, long noShowCount, long approvedTransactionCount,
+                                          long rejectedTransactionCount, long pointsDistributed, long benefitClaims,
+                                          long boothSessionVisits, long rewardRedemptions, long rejectedScans,
+                                          List<ReportRow> transactionSummary,
                                           List<ReportRow> attendanceSummary, List<ReportRow> rejectedSummary,
                                           List<ReportRow> pointsRewardsSummary, List<ReportRow> recentActivity) {
     }
@@ -85,5 +94,11 @@ public final class OrganizerDtos {
     }
 
     public record UserSearchResponse(UUID userId, String name, String email, String role, String status) {
+    }
+
+    public record OrganizerTransactionRuleResponse(UUID id, UUID eventId, UUID scanPurposeId, boolean active,
+                                                   boolean allowDuplicate, int duplicateWindowMinutes,
+                                                   int maxUsesPerRegistration, boolean requiresStaffAssignment,
+                                                   int pointsAwarded, Instant createdAt, Instant updatedAt) {
     }
 }
