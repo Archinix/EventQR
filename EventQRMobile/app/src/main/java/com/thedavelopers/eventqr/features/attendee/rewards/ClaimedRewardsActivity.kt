@@ -2,16 +2,29 @@ package com.thedavelopers.eventqr.features.attendee
 
 import android.os.Bundle
 import android.view.View
+import android.widget.Button
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.thedavelopers.eventqr.R
+import com.thedavelopers.eventqr.core.api.NetworkResult
+import com.thedavelopers.eventqr.core.api.dto.RegistrationStatus
+import com.thedavelopers.eventqr.features.rewards.model.dto.RewardRedemptionResponse
+import kotlinx.coroutines.launch
+import java.time.Instant
 
 open class ClaimedRewardsActivity : AppCompatActivity(), ClaimedRewardsContract.View {
     private lateinit var presenter: ClaimedRewardsPresenter
     private lateinit var adapter: com.thedavelopers.eventqr.features.rewards.ClaimedRewardAdapter
+    private lateinit var loadingView: ProgressBar
+    private lateinit var emptyView: TextView
+    private lateinit var errorView: TextView
+    private lateinit var retryButton: Button
+    private lateinit var recyclerView: RecyclerView
     private var eventId: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,18 +34,25 @@ open class ClaimedRewardsActivity : AppCompatActivity(), ClaimedRewardsContract.
         presenter = ClaimedRewardsPresenter(this, AttendeeRepository(this))
         adapter = com.thedavelopers.eventqr.features.rewards.ClaimedRewardAdapter()
 
+        loadingView = findViewById(R.id.progressClaimedRewardsLoading)
+        emptyView = findViewById(R.id.txtClaimedRewardsEmpty)
+        errorView = findViewById(R.id.txtClaimedRewardsError)
+        retryButton = findViewById(R.id.btnClaimedRewardsRetry)
+        recyclerView = findViewById(R.id.recyclerClaimedRewards)
+
         eventId = intent.getStringExtra(EXTRA_EVENT_ID).orEmpty()
 
         findViewById<View>(R.id.btnBack)?.setOnClickListener { finish() }
+        retryButton.setOnClickListener {
+            loadClaimedRewards()
+        }
 
-        findViewById<RecyclerView>(R.id.recyclerClaimedRewards)?.apply {
+        recyclerView.apply {
             layoutManager = LinearLayoutManager(this@ClaimedRewardsActivity)
             adapter = this@ClaimedRewardsActivity.adapter
         }
 
-        if (eventId.isNotBlank()) {
-            presenter.loadRedemptions(eventId)
-        }
+        loadClaimedRewards()
     }
 
     override fun onDestroy() {
@@ -40,14 +60,81 @@ open class ClaimedRewardsActivity : AppCompatActivity(), ClaimedRewardsContract.
         super.onDestroy()
     }
 
-    override fun showLoading(isLoading: Boolean) = Unit
+    override fun showLoading(isLoading: Boolean) {
+        loadingView.visibility = if (isLoading) View.VISIBLE else View.GONE
+        if (isLoading) {
+            emptyView.visibility = View.GONE
+            errorView.visibility = View.GONE
+            retryButton.visibility = View.GONE
+            recyclerView.visibility = View.GONE
+        }
+    }
+
     override fun showMessage(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
-    override fun renderRedemptions(items: List<com.thedavelopers.eventqr.features.rewards.model.dto.RewardRedemptionResponse>) {
-        adapter.submitItems(items)
-        findViewById<TextView>(R.id.txtTotalRewardsValue)?.text = items.size.toString()
-        findViewById<TextView>(R.id.txtPointsUsedValue)?.text = items.sumOf { it.pointsSpent }.toString()
+    override fun showError(message: String) {
+        loadingView.visibility = View.GONE
+
+        errorView.text = message.ifBlank { "Unable to load claimed rewards." }
+        errorView.visibility = View.VISIBLE
+        retryButton.visibility = View.VISIBLE
+        emptyView.visibility = View.GONE
+        recyclerView.visibility = View.GONE
+    }
+
+    override fun renderRedemptions(
+        items: List<RewardRedemptionResponse>,
+        eventTitle: String?,
+        rewardNamesById: Map<String, String>,
+    ) {
+        loadingView.visibility = View.GONE
+        errorView.visibility = View.GONE
+        retryButton.visibility = View.GONE
+
+        val sorted = items.sortedByDescending { it.redeemedAt ?: Instant.EPOCH }
+        adapter.submitItems(sorted, eventTitle, rewardNamesById)
+
+        val isEmpty = sorted.isEmpty()
+        emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+        recyclerView.visibility = if (isEmpty) View.GONE else View.VISIBLE
+    }
+
+    private fun loadClaimedRewards() {
+        if (eventId.isNotBlank()) {
+            presenter.loadRedemptions(eventId)
+            return
+        }
+
+        showLoading(true)
+        lifecycleScope.launch {
+            when (val registrationsResult = AttendeeRepository(this@ClaimedRewardsActivity).getMyRegistrations()) {
+                is NetworkResult.Success -> {
+                    val selectedRegistration = registrationsResult.data
+                        .filter { it.status != RegistrationStatus.CANCELLED && it.status != RegistrationStatus.NO_SHOW }
+                        .maxByOrNull { it.registeredAt ?: Instant.EPOCH }
+
+                    val selectedEventId = selectedRegistration?.eventId?.toString().orEmpty()
+                    if (selectedEventId.isBlank()) {
+                        loadingView.visibility = View.GONE
+                        emptyView.text = "No claimed rewards yet."
+                        emptyView.visibility = View.VISIBLE
+                        retryButton.visibility = View.GONE
+                        recyclerView.visibility = View.GONE
+                        return@launch
+                    }
+
+                    eventId = selectedEventId
+                    presenter.loadRedemptions(selectedEventId)
+                }
+
+                is NetworkResult.Error -> {
+                    showError(registrationsResult.message.ifBlank { "Unable to load claimed rewards." })
+                }
+
+                NetworkResult.Loading -> Unit
+            }
+        }
     }
 }
