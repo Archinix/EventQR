@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.hardware.Camera
 import android.os.Bundle
 import android.os.SystemClock
@@ -12,12 +13,14 @@ import android.view.Gravity
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -84,6 +87,7 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
     private var lastSubmittedAtMs: Long = 0L
     private var submitInFlight: Boolean = false
     private var isPurposeDropdownOpen = false
+    private var purposePopup: PopupWindow? = null
     private var camera: Camera? = null
     private val decoding = AtomicBoolean(false)
     private val decoderExecutor = Executors.newSingleThreadExecutor()
@@ -142,6 +146,7 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
         adapter = TransactionAdapter()
         staffUserId = SessionManager(this).getUserId()
 
+        purposeDropdown.visibility = View.GONE
         inlineCameraSurface.holder.addCallback(this)
         inlineCameraSurface.setZOrderMediaOverlay(false)
         requestInlineCameraStart()
@@ -190,11 +195,13 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
 
     override fun onPause() {
         releaseInlineCamera()
+        purposePopup?.dismiss()
         super.onPause()
     }
 
     override fun onDestroy() {
         presenter.detach()
+        purposePopup?.dismiss()
         releaseInlineCamera()
         decoderExecutor.shutdownNow()
         super.onDestroy()
@@ -260,15 +267,15 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
 
         purposeOptions.clear()
         purposeOptions.addAll(activePurposes)
+        setPurposeDropdownOpen(false)
 
         if (activePurposes.isEmpty()) {
             purposeSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listOf("No scan purposes enabled for this event."))
             purposeSpinner.isEnabled = false
             selectedPurposeName.text = "No scan purposes enabled"
             selectedPurposePoints.text = "Configure scan purposes first"
+            selectedPurposePoints.visibility = View.VISIBLE
             selectedPurposePoints.setTextColor(0xFF6B7280.toInt())
-            purposeDropdown.removeAllViews()
-            setPurposeDropdownOpen(false)
         } else {
             purposeSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, activePurposes.map { it.name })
             purposeSpinner.isEnabled = true
@@ -434,55 +441,92 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
     private fun bindSelectedPurposeHeader() {
         val purpose = purposeOptions.getOrNull(purposeSpinner.selectedItemPosition)
         selectedPurposeName.text = purpose?.displayName().orEmpty().ifBlank { "Select purpose" }
-        selectedPurposePoints.text = purpose?.pointsLabel().orEmpty()
+        val pointsText = purpose?.pointsLabel().orEmpty()
+        selectedPurposePoints.text = pointsText
+        selectedPurposePoints.visibility = if (pointsText.isBlank()) View.GONE else View.VISIBLE
         selectedPurposePoints.setTextColor(0xFF4F46E5.toInt())
     }
 
     private fun renderPurposeDropdown() {
-        purposeDropdown.removeAllViews()
-        purposeOptions.forEachIndexed { index, purpose ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(16), dp(12), dp(16), dp(12))
-                setBackgroundColor(if (index == purposeSpinner.selectedItemPosition) Color.parseColor("#EEF2FF") else Color.WHITE)
-                setOnClickListener {
-                    purposeSpinner.setSelection(index, false)
-                    bindSelectedPurposeHeader()
-                    renderPurposeDropdown()
-                    setPurposeDropdownOpen(false)
-                }
+        purposeDropdown.visibility = View.GONE
+        purposePopup?.dismiss()
+        purposePopup = PopupWindow(
+            buildPurposeDropdownView(),
+            selectedPurposeCard.width.takeIf { it > 0 } ?: ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            true,
+        ).apply {
+            isOutsideTouchable = true
+            elevation = dp(8).toFloat()
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setOnDismissListener {
+                isPurposeDropdownOpen = false
+                purposeChevron.text = "⌄"
             }
-            val textColumn = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+    }
+
+    private fun buildPurposeDropdownView(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card)
+            purposeOptions.forEachIndexed { index, purpose ->
+                addView(LinearLayout(this@ScannerActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(16), dp(12), dp(16), dp(12))
+                    setBackgroundColor(if (index == purposeSpinner.selectedItemPosition) Color.parseColor("#EEF2FF") else Color.WHITE)
+                    setOnClickListener {
+                        purposeSpinner.setSelection(index, false)
+                        bindSelectedPurposeHeader()
+                        renderPurposeDropdown()
+                        setPurposeDropdownOpen(false)
+                    }
+
+                    addView(LinearLayout(this@ScannerActivity).apply {
+                        orientation = LinearLayout.VERTICAL
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        addView(TextView(this@ScannerActivity).apply {
+                            text = purpose.displayName()
+                            setTextColor(if (index == purposeSpinner.selectedItemPosition) 0xFF4F46E5.toInt() else 0xFF111827.toInt())
+                            textSize = 14f
+                            setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        })
+                        addView(TextView(this@ScannerActivity).apply {
+                            text = purpose.description?.takeIf { it.isNotBlank() } ?: purpose.defaultDescription()
+                            setTextColor(0xFF6B7280.toInt())
+                            textSize = 13f
+                        })
+                    })
+
+                    val pointsText = purpose.pointsLabel()
+                    if (pointsText.isNotBlank()) {
+                        addView(TextView(this@ScannerActivity).apply {
+                            text = pointsText
+                            setTextColor(0xFF10B981.toInt())
+                            textSize = 13f
+                            setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        })
+                    }
+                })
             }
-            textColumn.addView(TextView(this).apply {
-                text = purpose.displayName()
-                setTextColor(if (index == purposeSpinner.selectedItemPosition) 0xFF4F46E5.toInt() else 0xFF111827.toInt())
-                textSize = 14f
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-            })
-            textColumn.addView(TextView(this).apply {
-                text = purpose.description?.takeIf { it.isNotBlank() } ?: purpose.defaultDescription()
-                setTextColor(0xFF6B7280.toInt())
-                textSize = 13f
-            })
-            row.addView(textColumn)
-            row.addView(TextView(this).apply {
-                text = purpose.pointsLabel()
-                setTextColor(0xFF10B981.toInt())
-                textSize = 13f
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-            })
-            purposeDropdown.addView(row)
         }
     }
 
     private fun setPurposeDropdownOpen(open: Boolean) {
-        isPurposeDropdownOpen = open
-        purposeDropdown.visibility = if (open) View.VISIBLE else View.GONE
-        purposeChevron.text = if (open) "⌃" else "⌄"
+        if (open && purposeOptions.isEmpty()) return
+        if (open) {
+            if (purposePopup == null || selectedPurposeCard.width > 0 && purposePopup?.width != selectedPurposeCard.width) {
+                renderPurposeDropdown()
+            }
+            isPurposeDropdownOpen = true
+            purposeChevron.text = "⌃"
+            purposePopup?.showAsDropDown(selectedPurposeCard, 0, 0)
+        } else {
+            purposePopup?.dismiss()
+            isPurposeDropdownOpen = false
+            purposeChevron.text = "⌄"
+        }
     }
 
     private fun ScanPurposeResponse.displayName(): String = when (code) {
@@ -505,13 +549,7 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
         else -> "Scan attendee QR credential"
     }
 
-    private fun ScanPurposeResponse.pointsLabel(): String = when (code) {
-        ScanPurposeCode.ENTRY -> "+50 pts"
-        ScanPurposeCode.ATTENDANCE -> "+30 pts"
-        ScanPurposeCode.BOOTH_VISIT -> "+15 pts"
-        ScanPurposeCode.EXIT -> "+25 pts"
-        else -> ""
-    }
+    private fun ScanPurposeResponse.pointsLabel(): String = ""
 
     private fun submitCurrentSelection(trigger: String) {
         val selectedEvent = selectedEvent()
