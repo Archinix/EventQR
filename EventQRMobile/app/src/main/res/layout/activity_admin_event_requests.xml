@@ -89,71 +89,77 @@
         </HorizontalScrollView>
     </LinearLayout>
 
-    <FrameLayout
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefreshRequests"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerRequests"
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="12dp"
-            android:paddingBottom="16dp" />
+            android:layout_height="match_parent">
 
-        <ProgressBar
-            android:id="@+id/loadingRequests"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_gravity="center"
-            android:visibility="gone" />
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerRequests"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingHorizontal="16dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="16dp" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top"
-            android:orientation="vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="12dp">
+            <ProgressBar
+                android:id="@+id/loadingRequests"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="center"
+                android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/textError"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_error_box"
-                android:padding="12dp"
-                android:textColor="@color/eventqr_error"
-                android:textSize="14sp"
-                android:visibility="gone" />
+                android:layout_gravity="top"
+                android:orientation="vertical"
+                android:paddingHorizontal="16dp"
+                android:paddingTop="12dp">
 
-            <Button
-                android:id="@+id/buttonRetry"
+                <TextView
+                    android:id="@+id/textError"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_error_box"
+                    android:padding="12dp"
+                    android:textColor="@color/eventqr_error"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/buttonRetry"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_outline_button"
+                    android:text="Retry"
+                    android:textAllCaps="false"
+                    android:textColor="@color/eventqr_indigo"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/textEmpty"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_outline_button"
-                android:text="Retry"
-                android:textAllCaps="false"
-                android:textColor="@color/eventqr_indigo"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginHorizontal="16dp"
+                android:gravity="center"
+                android:text="No event requests yet."
+                android:textColor="@color/eventqr_muted"
                 android:textSize="15sp"
-                android:textStyle="bold"
                 android:visibility="gone" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/textEmpty"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:layout_marginHorizontal="16dp"
-            android:gravity="center"
-            android:text="No event requests yet."
-            android:textColor="@color/eventqr_muted"
-            android:textSize="15sp"
-            android:visibility="gone" />
-    </FrameLayout>
+        </FrameLayout>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -163,112 +169,24 @@
         android:orientation="horizontal"
         android:paddingHorizontal="20dp">
 
-        <LinearLayout
-            android:id="@+id/navDashboard"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:orientation="vertical">
-
-            <ImageView
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="@drawable/bg_nav_icon_inactive"
-                android:contentDescription="Dashboard"
-                android:padding="8dp"
-                android:src="@drawable/ic_nav_home"
-                android:tint="#000000" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="Dashboard"
-                android:textColor="#333333"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+        <LinearLayout android:id="@+id/navDashboard" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+            <ImageView android:layout_width="38dp" android:layout_height="38dp" android:background="@drawable/bg_nav_icon_inactive" android:contentDescription="Dashboard" android:padding="8dp" android:src="@drawable/ic_nav_home" android:tint="#000000" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Dashboard" android:textColor="#333333" android:textSize="12sp" android:textStyle="bold" />
         </LinearLayout>
 
-        <LinearLayout
-            android:id="@+id/navRequests"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:orientation="vertical">
-
-            <ImageView
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="@drawable/bg_nav_icon_active"
-                android:contentDescription="Requests"
-                android:padding="8dp"
-                android:src="@drawable/ic_action_request"
-                android:tint="#FFFFFF" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="Requests"
-                android:textColor="#333333"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+        <LinearLayout android:id="@+id/navRequests" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+            <ImageView android:layout_width="38dp" android:layout_height="38dp" android:background="@drawable/bg_nav_icon_active" android:contentDescription="Requests" android:padding="8dp" android:src="@drawable/ic_action_request" android:tint="#FFFFFF" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Requests" android:textColor="#333333" android:textSize="12sp" android:textStyle="bold" />
         </LinearLayout>
 
-        <LinearLayout
-            android:id="@+id/navAccounts"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:orientation="vertical">
-
-            <ImageView
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="@drawable/bg_nav_icon_inactive"
-                android:contentDescription="Accounts"
-                android:padding="8dp"
-                android:src="@drawable/ic_group"
-                android:tint="#000000" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="Accounts"
-                android:textColor="#333333"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+        <LinearLayout android:id="@+id/navAccounts" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+            <ImageView android:layout_width="38dp" android:layout_height="38dp" android:background="@drawable/bg_nav_icon_inactive" android:contentDescription="Accounts" android:padding="8dp" android:src="@drawable/ic_group" android:tint="#000000" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Accounts" android:textColor="#333333" android:textSize="12sp" android:textStyle="bold" />
         </LinearLayout>
 
-        <LinearLayout
-            android:id="@+id/navLogs"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:orientation="vertical">
-
-            <ImageView
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="@drawable/bg_nav_icon_inactive"
-                android:contentDescription="Logs"
-                android:padding="8dp"
-                android:src="@drawable/ic_file"
-                android:tint="#000000" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="Logs"
-                android:textColor="#333333"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+        <LinearLayout android:id="@+id/navLogs" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+            <ImageView android:layout_width="38dp" android:layout_height="38dp" android:background="@drawable/bg_nav_icon_inactive" android:contentDescription="Logs" android:padding="8dp" android:src="@drawable/ic_file" android:tint="#000000" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Logs" android:textColor="#333333" android:textSize="12sp" android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>
