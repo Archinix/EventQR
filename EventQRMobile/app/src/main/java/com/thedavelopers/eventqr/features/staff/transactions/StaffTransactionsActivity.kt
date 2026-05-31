@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.thedavelopers.eventqr.R
 import com.thedavelopers.eventqr.core.api.NetworkResult
 import com.thedavelopers.eventqr.core.api.dto.AccountRole
@@ -23,6 +24,7 @@ import kotlinx.coroutines.launch
 open class StaffTransactionsActivity : AppCompatActivity(), StaffTransactionsContract.View {
     private lateinit var presenter: StaffTransactionsPresenter
     private lateinit var adapter: TransactionLogAdapter
+    private lateinit var swipeRefresh: SwipeRefreshLayout
     private var selectedEventId: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,6 +41,8 @@ open class StaffTransactionsActivity : AppCompatActivity(), StaffTransactionsCon
 
         presenter = StaffTransactionsPresenter(this, StaffRepository(this))
         adapter = TransactionLogAdapter()
+        swipeRefresh = findViewById(R.id.swipeRefreshStaffTransactions)
+        swipeRefresh.setOnRefreshListener { refreshTransactions() }
 
         findViewById<RecyclerView>(R.id.recyclerStaffTransactions).apply {
             layoutManager = LinearLayoutManager(this@StaffTransactionsActivity)
@@ -78,17 +82,25 @@ open class StaffTransactionsActivity : AppCompatActivity(), StaffTransactionsCon
         }
     }
 
+    private fun refreshTransactions() {
+        selectedEventId = findViewById<EditText>(R.id.edtStaffTransactionsEventId).text.toString().ifBlank { selectedEventId }
+        if (selectedEventId.isBlank()) {
+            swipeRefresh.isRefreshing = false
+            showMessage("No assigned event selected.")
+            return
+        }
+        presenter.load(selectedEventId)
+    }
+
     private fun setupBottomNav() {
         findViewById<View>(R.id.navDashboard)?.setOnClickListener {
             startActivity(Intent(this, StaffDashboardActivity::class.java))
             finish()
         }
-
         findViewById<View>(R.id.navScanner)?.setOnClickListener {
             startActivity(Intent(this, ScannerActivity::class.java))
             finish()
         }
-
         findViewById<View>(R.id.navProfile)?.setOnClickListener {
             startActivity(Intent(this, StaffProfileActivity::class.java))
             finish()
@@ -101,6 +113,7 @@ open class StaffTransactionsActivity : AppCompatActivity(), StaffTransactionsCon
     }
 
     override fun renderTransactions(items: List<TransactionResponse>) {
+        swipeRefresh.isRefreshing = false
         adapter.submitItems(items)
         findViewById<TextView>(R.id.txtTotalScans).text = items.size.toString()
         findViewById<TextView>(R.id.txtSuccessfulScans).text = items.count { it.transactionResult.name == "APPROVED" || it.transactionResult.name == "SUCCESS" }.toString()
@@ -110,11 +123,17 @@ open class StaffTransactionsActivity : AppCompatActivity(), StaffTransactionsCon
     }
 
     override fun showMessage(message: String) {
+        swipeRefresh.isRefreshing = false
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
     override fun showLoading(isLoading: Boolean) {
-        findViewById<View>(R.id.progressScanner)?.visibility = if (isLoading) View.VISIBLE else View.GONE
+        if (!swipeRefresh.isRefreshing) {
+            findViewById<View>(R.id.progressScanner)?.visibility = if (isLoading) View.VISIBLE else View.GONE
+        }
         findViewById<View>(R.id.btnLoadStaffTransactions)?.isEnabled = !isLoading
+        if (!isLoading) {
+            swipeRefresh.isRefreshing = false
+        }
     }
 }
