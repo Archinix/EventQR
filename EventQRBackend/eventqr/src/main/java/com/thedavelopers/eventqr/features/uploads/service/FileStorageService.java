@@ -1,20 +1,14 @@
 package com.thedavelopers.eventqr.features.uploads.service;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Comparator;
-import java.util.Map;
-import java.util.Properties;
-import java.time.Instant;
 import java.util.UUID;
-import java.util.stream.Stream;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,27 +19,50 @@ import com.thedavelopers.eventqr.shared.exceptions.ResourceNotFoundException;
 @Service
 public class FileStorageService {
 
-    private static final String CONTENT_FILE_NAME = "content.bin";
-    private static final String METADATA_FILE_NAME = "metadata.properties";
-    private final Path storageRoot = Paths.get(System.getProperty("user.dir"), "storage", "uploads");
+    private final Path storageRoot;
+
+    public FileStorageService(@Value("${eventqr.upload-dir:uploads}") String uploadDir) {
+        this.storageRoot = Path.of(uploadDir).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(storageRoot);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to initialize upload directory", exception);
+        }
+    }
 
     public StoredFileResponse store(UUID ownerId, String purpose, MultipartFile file) {
         validateFile(file);
         try {
             UUID fileId = UUID.randomUUID();
-            Instant storedAt = Instant.now();
-            Path fileDirectory = resolveFileDirectory(fileId);
-            Files.createDirectories(fileDirectory);
-            Files.copy(file.getInputStream(), fileDirectory.resolve(CONTENT_FILE_NAME), StandardCopyOption.REPLACE_EXISTING);
-            writeMetadata(fileDirectory.resolve(METADATA_FILE_NAME), ownerId, purpose, file.getOriginalFilename(), file.getContentType(), storedAt);
-            return readRecord(fileId).toResponse("STORED");
+            byte[] content = file.getBytes();
+            StoredFileRecord record = new StoredFileRecord(
+                    fileId,
+                    ownerId,
+                    purpose,
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    content.length,
+                    Instant.now()
+            );
+            Files.write(filePath(fileId), content, StandardOpenOption.CREATE_NEW);
+            return record.toResponse("STORED", content);
         } catch (IOException exception) {
             throw new BadRequestException("Unable to read uploaded file");
         }
     }
 
     public StoredFileResponse find(UUID fileId) {
-        return require(fileId).toResponse("AVAILABLE");
+        try {
+            Path path = filePath(fileId);
+            if (!Files.exists(path)) {
+                throw new ResourceNotFoundException("File not found: " + fileId);
+            }
+            byte[] content = Files.readAllBytes(path);
+            StoredFileRecord record = new StoredFileRecord(fileId, null, null, fileId.toString(), null, content.length, Instant.now());
+            return record.toResponse("AVAILABLE", content);
+        } catch (IOException exception) {
+            throw new ResourceNotFoundException("File not found: " + fileId);
+        }
     }
 
     public StoredFileContent readContent(UUID fileId) {
@@ -54,113 +71,39 @@ public class FileStorageService {
     }
 
     public StoredFileResponse delete(UUID fileId) {
-        FileStorageRecord record = require(fileId);
-        deleteDirectory(record.fileDirectory);
-        return record.toResponse("DELETED");
+        StoredFileResponse existing = find(fileId);
+        try {
+            Files.deleteIfExists(filePath(fileId));
+        } catch (IOException exception) {
+            throw new BadRequestException("Unable to delete file");
+        }
+        return new StoredFileResponse(existing.fileId(), existing.ownerId(), existing.purpose(), existing.fileName(),
+                existing.contentType(), existing.size(), "DELETED", existing.storedAt(), existing.contentBase64());
     }
 
-    public String buildContentPath(UUID fileId) {
-        return "files/" + fileId + "/content";
-    }
-
-    private FileStorageRecord require(UUID fileId) {
-        return readRecord(fileId);
+    private Path filePath(UUID fileId) {
+        return storageRoot.resolve(fileId.toString() + ".bin").normalize();
     }
 
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("File is required");
         }
-    }
-
-    private Path resolveFileDirectory(UUID fileId) {
-        return storageRoot.resolve(fileId.toString());
-    }
-
-    private void writeMetadata(Path metadataFile, UUID ownerId, String purpose, String fileName, String contentType,
-                               Instant storedAt) throws IOException {
-        Properties properties = new Properties();
-        properties.setProperty("ownerId", ownerId == null ? "" : ownerId.toString());
-        properties.setProperty("purpose", purpose == null ? "" : purpose);
-        properties.setProperty("fileName", fileName == null ? "" : fileName);
-        properties.setProperty("contentType", contentType == null ? "" : contentType);
-        properties.setProperty("storedAt", storedAt.toString());
-        try (var output = Files.newOutputStream(metadataFile)) {
-            properties.store(output, "EventQR upload metadata");
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+            throw new BadRequestException("Only image uploads are supported");
         }
     }
 
-    private FileStorageRecord readRecord(UUID fileId) {
-        try {
-            Path fileDirectory = resolveFileDirectory(fileId);
-            Path contentFile = fileDirectory.resolve(CONTENT_FILE_NAME);
-            Path metadataFile = fileDirectory.resolve(METADATA_FILE_NAME);
-            if (!Files.exists(contentFile) || !Files.exists(metadataFile)) {
-                throw new ResourceNotFoundException("File not found: " + fileId);
-            }
-
-            Properties properties = new Properties();
-            try (var input = Files.newInputStream(metadataFile)) {
-                properties.load(input);
-            }
-
-            byte[] content = Files.readAllBytes(contentFile);
-            return new FileStorageRecord(
-                    fileId,
-                    parseUuid(properties.getProperty("ownerId")),
-                    blankToNull(properties.getProperty("purpose")),
-                    blankToNull(properties.getProperty("fileName")),
-                    blankToNull(properties.getProperty("contentType")),
-                    content,
-                    parseInstant(properties.getProperty("storedAt")),
-                    fileDirectory);
-        } catch (IOException exception) {
-            throw new BadRequestException("Unable to read stored file");
-        }
-    }
-
-    private UUID parseUuid(String value) {
-        return value == null || value.isBlank() ? null : UUID.fromString(value.trim());
-    }
-
-    private Instant parseInstant(String value) {
-        return value == null || value.isBlank() ? Instant.now() : Instant.parse(value.trim());
-    }
-
-    private String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
-
-    private void deleteDirectory(Path directory) {
-        if (directory == null || !Files.exists(directory)) {
-            return;
-        }
-        try (Stream<Path> walk = Files.walk(directory)) {
-            walk.sorted(Comparator.reverseOrder()).forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException exception) {
-                    throw new IllegalStateException(exception);
-                }
-            });
-        } catch (IOException exception) {
-            throw new BadRequestException("Unable to delete stored file");
-        }
-    }
-
-    private record FileStorageRecord(UUID fileId, UUID ownerId, String purpose, String fileName,
-                                     String contentType, byte[] content, Instant storedAt, Path fileDirectory) {
-        StoredFileResponse toResponse(String status) {
+    private record StoredFileRecord(UUID fileId, UUID ownerId, String purpose, String fileName,
+                                    String contentType, long size, Instant storedAt) {
+        StoredFileResponse toResponse(String status, byte[] content) {
             return new StoredFileResponse(fileId, ownerId, purpose, fileName,
-                    contentType, content == null ? 0 : content.length, status, storedAt, encode(content));
+                    contentType, size, status, storedAt, encode(content));
         }
     }
 
-    @SuppressWarnings("unused")
     private static String encode(byte[] content) {
         return Base64.getEncoder().encodeToString(content == null ? new byte[0] : content);
-    }
-
-    public record StoredFileContent(byte[] content, String contentType) {
     }
 }
