@@ -32,7 +32,7 @@ class ScannerPresenter(
                 is NetworkResult.Success -> {
                     val selectable = result.data
                         .filter { it.canScan && it.status != EventStatus.ENDED }
-                        .map { EventSpinnerOption(it.eventId.toString(), it.title, it.canScan) }
+                        .map { EventSpinnerOption(it.eventId.toString(), it.title, it.canScan, it.eventStartAt) }
                     if (selectable.isEmpty() && result.data.any { it.status == EventStatus.ENDED }) {
                         view?.showMessage("Event has ended. Scanning is disabled.")
                     }
