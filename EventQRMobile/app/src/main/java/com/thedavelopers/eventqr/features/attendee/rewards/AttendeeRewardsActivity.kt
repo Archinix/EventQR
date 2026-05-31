@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.thedavelopers.eventqr.R
 import com.thedavelopers.eventqr.core.api.NetworkResult
 import com.thedavelopers.eventqr.core.api.dto.RegistrationStatus
@@ -33,6 +34,7 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
     private lateinit var presenter: RewardsPresenter
     private lateinit var repository: AttendeeRepository
     private lateinit var adapter: RewardAdapter
+    private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var loadingContainer: View
     private lateinit var loadingText: TextView
     private lateinit var errorContainer: View
@@ -77,6 +79,7 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
             )
         }
 
+        swipeRefresh = findViewById(R.id.swipeRefreshRewards)
         loadingContainer = findViewById(R.id.loadingRewardsContainer)
         loadingText = findViewById(R.id.txtRewardsLoading)
         errorContainer = findViewById(R.id.errorRewardsContainer)
@@ -103,15 +106,8 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
             startActivity(intent)
         }
 
-        retryButton.setOnClickListener {
-            if (eventOptions.isEmpty()) {
-                loadRegisteredEvents()
-            } else {
-                val option = selectedEventId?.let { id -> eventOptions.firstOrNull { it.eventId == id } }
-                    ?: eventOptions.firstOrNull()
-                option?.let { loadSelectedEventRewards(it) }
-            }
-        }
+        retryButton.setOnClickListener { refreshRewardsPreservingSelection() }
+        swipeRefresh.setOnRefreshListener { refreshRewardsPreservingSelection() }
 
         eventSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
@@ -132,8 +128,10 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
     }
 
     override fun showLoading(isLoading: Boolean) {
-        loadingContainer.visibility = if (isLoading) View.VISIBLE else View.GONE
-        loadingText.visibility = if (isLoading) View.VISIBLE else View.GONE
+        if (!swipeRefresh.isRefreshing) {
+            loadingContainer.visibility = if (isLoading) View.VISIBLE else View.GONE
+            loadingText.visibility = if (isLoading) View.VISIBLE else View.GONE
+        }
         if (isLoading) {
             errorContainer.visibility = View.GONE
             errorText.visibility = View.GONE
@@ -141,6 +139,8 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
             emptyRewardsText.visibility = View.GONE
             rewardsRecycler.visibility = View.GONE
             rewardsBalanceCard.visibility = View.GONE
+        } else {
+            swipeRefresh.isRefreshing = false
         }
     }
 
@@ -149,6 +149,7 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
     }
 
     override fun showError(message: String) {
+        swipeRefresh.isRefreshing = false
         loadingContainer.visibility = View.GONE
         loadingText.visibility = View.GONE
         errorContainer.visibility = View.VISIBLE
@@ -167,6 +168,7 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
     }
 
     override fun renderRewards(items: List<RewardResponse>) {
+        swipeRefresh.isRefreshing = false
         adapter.submitItems(items)
         loadingContainer.visibility = View.GONE
         loadingText.visibility = View.GONE
@@ -178,8 +180,20 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
         rewardsRecycler.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
     }
 
-    private fun loadRegisteredEvents() {
-        loadingContainer.visibility = View.VISIBLE
+    private fun refreshRewardsPreservingSelection() {
+        val previousEventId = selectedEventId
+        if (previousEventId.isNullOrBlank()) {
+            loadRegisteredEvents()
+            return
+        }
+        loadRegisteredEvents(preferredEventId = previousEventId)
+    }
+
+    private fun loadRegisteredEvents(preferredEventId: String? = selectedEventId ?: intent.getStringExtra(EXTRA_EVENT_ID).orEmpty().ifBlank { null }) {
+        if (!swipeRefresh.isRefreshing) {
+            loadingContainer.visibility = View.VISIBLE
+            loadingText.visibility = View.VISIBLE
+        }
         loadingText.text = "Loading attendee rewards..."
         errorContainer.visibility = View.GONE
         errorText.visibility = View.GONE
@@ -211,6 +225,7 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
                     loadingContainer.visibility = View.GONE
 
                     if (eventOptions.isEmpty()) {
+                        swipeRefresh.isRefreshing = false
                         selectedEventId = null
                         selectedEventTitle = ""
                         emptyEventsText.visibility = View.VISIBLE
@@ -235,8 +250,7 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
                     ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
                     eventSpinner.adapter = spinnerAdapter
 
-                    val requestedEventId = intent.getStringExtra(EXTRA_EVENT_ID).orEmpty()
-                    val initialIndex = eventOptions.indexOfFirst { it.eventId == requestedEventId }
+                    val initialIndex = eventOptions.indexOfFirst { it.eventId == preferredEventId }
                         .takeIf { it >= 0 }
                         ?: 0
 
@@ -247,6 +261,7 @@ open class AttendeeRewardsActivity : AppCompatActivity(), RewardsContract.View {
                 }
 
                 is NetworkResult.Error -> {
+                    swipeRefresh.isRefreshing = false
                     showError(registrationsResult.message.ifBlank { "Unable to load registered events." })
                 }
 
