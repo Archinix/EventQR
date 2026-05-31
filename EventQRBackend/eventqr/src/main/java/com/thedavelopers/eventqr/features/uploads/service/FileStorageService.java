@@ -21,12 +21,12 @@ public class FileStorageService {
 
     private final Path storageRoot;
 
-    public FileStorageService(@Value("${eventqr.upload-dir:uploads}") String uploadDir) {
+    public FileStorageService(@Value("${eventqr.upload-dir:/tmp/eventqr-uploads}") String uploadDir) {
         this.storageRoot = Path.of(uploadDir).toAbsolutePath().normalize();
         try {
             Files.createDirectories(storageRoot);
         } catch (IOException exception) {
-            throw new IllegalStateException("Unable to initialize upload directory", exception);
+            throw new IllegalStateException("Unable to initialize upload directory: " + storageRoot, exception);
         }
     }
 
