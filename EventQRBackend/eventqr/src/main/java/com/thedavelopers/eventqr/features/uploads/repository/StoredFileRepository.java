@@ -4,7 +4,7 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.thedavelopers.eventqr.features.uploads.model.entity.StoredFileEntity;
+import com.thedavelopers.eventqr.features.uploads.model.entity.StoredFile;
 
-public interface StoredFileRepository extends JpaRepository<StoredFileEntity, UUID> {
+public interface StoredFileRepository extends JpaRepository<StoredFile, UUID> {
 }
