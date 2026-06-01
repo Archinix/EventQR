@@ -34,9 +34,17 @@ object RegistrationStatusBadgeStyler {
             )
         }
 
-        view.text = status.name.replace('_', ' ').uppercase(Locale.US)
+        view.text = displayLabel(status)
         view.setBackgroundResource(style.backgroundResId)
         view.setTextColor(ContextCompat.getColor(view.context, style.textColorResId))
+    }
+
+    fun displayLabel(status: RegistrationStatus): String = when (status) {
+        RegistrationStatus.REGISTERED -> "Registered"
+        RegistrationStatus.ENTERED -> "Checked In"
+        RegistrationStatus.EXITED -> "Exited"
+        RegistrationStatus.CANCELLED -> "Cancelled"
+        RegistrationStatus.NO_SHOW -> "No Show"
     }
 
     private data class BadgeStyle(
