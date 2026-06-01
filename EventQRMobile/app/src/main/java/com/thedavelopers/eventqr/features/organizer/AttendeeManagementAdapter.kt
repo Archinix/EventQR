@@ -1,6 +1,6 @@
 package com.thedavelopers.eventqr.features.organizer
 
-import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -52,7 +52,10 @@ class AttendeeManagementAdapter(
 
             val (backgroundColor, textColor) = item.statusPalette()
             statusText.text = item.statusBucket()
-            statusText.setBackgroundColor(backgroundColor)
+            statusText.background = GradientDrawable().apply {
+                setColor(backgroundColor)
+                cornerRadius = 999f
+            }
             statusText.setTextColor(textColor)
 
             itemView.setOnClickListener { onClick(item) }
