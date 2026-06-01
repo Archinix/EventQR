@@ -5,16 +5,22 @@ import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.thedavelopers.eventqr.R
-import com.thedavelopers.eventqr.core.util.DateFormatters
 import com.thedavelopers.eventqr.features.transactions.model.dto.TransactionResponse
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class TransactionLogAdapter : RecyclerView.Adapter<TransactionLogAdapter.ViewHolder>() {
 
     private val items = mutableListOf<TransactionResponse>()
+    private val timeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)
+        .withZone(ZoneId.of("Asia/Manila"))
 
     fun submitItems(newItems: List<TransactionResponse>) {
         items.clear()
@@ -36,39 +42,42 @@ class TransactionLogAdapter : RecyclerView.Adapter<TransactionLogAdapter.ViewHol
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val userNameView: TextView = itemView.findViewById(R.id.txtUserName)
         private val eventNameView: TextView = itemView.findViewById(R.id.txtEventName)
-        private val transactionIdView: TextView = itemView.findViewById(R.id.txtTransactionId)
-        private val statusBadgeView: TextView = itemView.findViewById(R.id.txtStatusBadge)
         private val timeView: TextView = itemView.findViewById(R.id.txtTransactionTime)
         private val purposeNameView: TextView = itemView.findViewById(R.id.txtPurposeName)
-        private val footerIconView: ImageView = itemView.findViewById(R.id.imgFooterIcon)
-        private val footerMessageView: TextView = itemView.findViewById(R.id.txtFooterMessage)
-        private val userAvatarView: ImageView = itemView.findViewById(R.id.imgUserAvatar)
         private val purposeIconView: ImageView = itemView.findViewById(R.id.imgPurposeIcon)
+        private val iconContainer: FrameLayout = itemView.findViewById(R.id.iconContainer)
+        private val pointsView: TextView = itemView.findViewById(R.id.txtPointsDelta)
 
         fun bind(item: TransactionResponse) {
+            val isSuccess = item.transactionResult.name == "APPROVED" || item.transactionResult.name == "SUCCESS"
+            val points = item.pointsDelta
+
             userNameView.text = item.attendeeName?.takeIf { it.isNotBlank() } ?: "Attendee"
             eventNameView.text = item.eventTitle?.takeIf { it.isNotBlank() } ?: "Event"
-            transactionIdView.text = "TXN-${item.transactionId.toString().take(8).uppercase()}"
-            
-            val isSuccess = item.transactionResult.name == "APPROVED" || item.transactionResult.name == "SUCCESS"
-            
-            statusBadgeView.text = if (isSuccess) "Accepted" else "Rejected"
-            statusBadgeView.setBackgroundResource(if (isSuccess) R.drawable.bg_accepted_badge else R.drawable.bg_rejected_badge)
-            statusBadgeView.setTextColor(if (isSuccess) Color.parseColor("#059669") else Color.parseColor("#D97706"))
-            
-            timeView.text = DateFormatters.formatInstant(item.scannedAt).replace(" ", "\n")
-            
-            purposeNameView.text = item.transactionType.name.lowercase().replaceFirstChar { it.uppercase() }.replace("_", " ")
-            
-            // Set purpose styling
-            purposeIconView.setImageResource(if (item.transactionType.name.contains("CHECK_IN")) R.drawable.ic_qr_scan else R.drawable.ic_file)
-            purposeIconView.imageTintList = ColorStateList.valueOf(Color.parseColor("#0369A1"))
-            
-            footerMessageView.text = if (isSuccess) "${purposeNameView.text} logged" else (item.reason ?: "Scan rejected by system")
-            footerMessageView.setTextColor(if (isSuccess) Color.parseColor("#059669") else Color.parseColor("#DC2626"))
-            footerIconView.imageTintList = ColorStateList.valueOf(if (isSuccess) Color.parseColor("#059669") else Color.parseColor("#DC2626"))
-            
-            userAvatarView.backgroundTintList = ColorStateList.valueOf(if (isSuccess) Color.parseColor("#E0F2F1") else Color.parseColor("#FFEDD5"))
+            purposeNameView.text = item.scanPurposeName?.takeIf { it.isNotBlank() } ?: formatType(item.transactionType.name)
+            timeView.text = formatTime(item.scannedAt)
+
+            iconContainer.setBackgroundResource(if (isSuccess) R.drawable.bg_transaction_success_icon else R.drawable.bg_transaction_rejected_icon)
+            purposeIconView.setImageResource(if (isSuccess) R.drawable.ic_staff_check else R.drawable.ic_staff_close)
+            purposeIconView.imageTintList = ColorStateList.valueOf(
+                if (isSuccess) Color.parseColor("#10B981") else Color.parseColor("#EF4444")
+            )
+
+            if (points == 0) {
+                pointsView.visibility = View.INVISIBLE
+                pointsView.text = "0 pts"
+            } else {
+                pointsView.visibility = View.VISIBLE
+                pointsView.text = if (points > 0) "+$points pts" else "$points pts"
+                pointsView.setTextColor(if (points > 0) Color.parseColor("#10B981") else Color.parseColor("#EF4444"))
+            }
         }
     }
+
+    private fun formatTime(value: Instant?): String = value?.let { timeFormatter.format(it) } ?: "--:--"
+
+    private fun formatType(value: String): String = value
+        .lowercase(Locale.US)
+        .split('_')
+        .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase(Locale.US) } }
 }
