@@ -55,4 +55,5 @@ data class EventRequestResponse(
     val reviewedAt: Instant? = null,
     val createdAt: Instant? = null,
     val updatedAt: Instant? = null,
+    val organizerUpgraded: Boolean = false,
 )
