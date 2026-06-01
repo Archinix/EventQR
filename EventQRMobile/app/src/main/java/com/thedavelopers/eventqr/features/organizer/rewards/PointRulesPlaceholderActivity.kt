@@ -12,7 +12,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -38,6 +37,7 @@ import com.thedavelopers.eventqr.features.organizer.errorState
 import com.thedavelopers.eventqr.features.organizer.eventSelector
 import com.thedavelopers.eventqr.features.organizer.formatCount
 import com.thedavelopers.eventqr.features.organizer.intentEventId
+import com.thedavelopers.eventqr.features.organizer.openOrganizerPage
 import com.thedavelopers.eventqr.features.organizer.organizerShell
 import com.thedavelopers.eventqr.features.organizer.resolveSelectedEvent
 import com.thedavelopers.eventqr.features.organizer.rounded
@@ -185,7 +185,7 @@ open class PointRulesPlaceholderActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(14) }
                 addView(text(displayPurposeName(purpose), 15, true, TEXT))
-                addView(text(subtitle, 13, true, if (active && points > 0) SUCCESS else SUCCESS).apply {
+                addView(text(subtitle, 13, true, SUCCESS).apply {
                     setPadding(0, dp(3), 0, 0)
                 })
             })
@@ -216,11 +216,13 @@ open class PointRulesPlaceholderActivity : AppCompatActivity() {
         val editablePurposes = scanPurposes.filterNot {
             it.code == ScanPurposeCode.REWARD_REDEMPTION || it.code == ScanPurposeCode.REWARD_REDEMPTION_SCAN
         }
-        val initialPurpose = purposeToEdit?.takeIf { editablePurposes.any { item -> item.id == it.id } } ?: editablePurposes.firstOrNull()
-        if (initialPurpose == null) {
-            Toast.makeText(this, "No editable point purposes available.", Toast.LENGTH_SHORT).show()
-            return
-        }
+        val initialPurpose: OrganizerMvpScanPurpose = purposeToEdit
+            ?.takeIf { editablePurposes.any { item -> item.id == it.id } }
+            ?: editablePurposes.firstOrNull()
+            ?: run {
+                Toast.makeText(this, "No editable point purposes available.", Toast.LENGTH_SHORT).show()
+                return
+            }
 
         val formRoot = organizerShell(
             title = if (purposeToEdit == null) "Add Point Rule" else "Edit Point Rule",
@@ -228,7 +230,7 @@ open class PointRulesPlaceholderActivity : AppCompatActivity() {
         )
         formRoot.setBackgroundColor(BG)
         formRoot.removeAllViews()
-        var selectedPurpose = initialPurpose
+        var selectedPurpose: OrganizerMvpScanPurpose = initialPurpose
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -258,9 +260,10 @@ open class PointRulesPlaceholderActivity : AppCompatActivity() {
         val trackingSwitch = SwitchCompat(this)
 
         fun bindPurposeFields() {
-            val existingRule = ruleFor(selectedPurpose)
-            val existingPoints = existingRule?.points ?: if (selectedPurpose.pointsEnabled) selectedPurpose.pointsValue else 0
-            val trackingOnly = selectedPurpose.trackingOnly || existingRule?.active == false || existingPoints <= 0
+            val currentPurpose = selectedPurpose
+            val existingRule = ruleFor(currentPurpose)
+            val existingPoints = existingRule?.points ?: if (currentPurpose.pointsEnabled) currentPurpose.pointsValue else 0
+            val trackingOnly = currentPurpose.trackingOnly || existingRule?.active == false || existingPoints <= 0
             pointsInput.setText(if (trackingOnly) "0" else existingPoints.coerceAtLeast(0).toString())
             pointsInput.isEnabled = !trackingOnly
             trackingSwitch.isChecked = trackingOnly
@@ -314,13 +317,14 @@ open class PointRulesPlaceholderActivity : AppCompatActivity() {
                 setMargins(0, dp(20), 0, 0)
             }
             setOnClickListener {
+                val purpose = selectedPurpose
                 val trackingOnly = trackingSwitch.isChecked
                 val points = pointsInput.text.toString().trim().toIntOrNull() ?: 0
                 if (!trackingOnly && points <= 0) {
                     Toast.makeText(this@PointRulesPlaceholderActivity, "Enter points greater than 0 or enable Tracking Only.", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                saveRule(selectedPurpose, if (trackingOnly) 0 else points, !trackingOnly)
+                saveRule(purpose, if (trackingOnly) 0 else points, !trackingOnly)
             }
         })
         formRoot.addView(footer)
