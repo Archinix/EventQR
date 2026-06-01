@@ -6,6 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.thedavelopers.eventqr.features.auditlogs.model.entity.AuditLog;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
-    List<AuditLog> findByEventId(UUID eventId);
+    List<AuditLog> findByEventIdOrderByCreatedAtDesc(UUID eventId);
+    List<AuditLog> findAllByOrderByCreatedAtDesc();
 }
-
