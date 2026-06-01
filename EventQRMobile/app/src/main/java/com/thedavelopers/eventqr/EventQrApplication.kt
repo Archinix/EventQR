@@ -6,10 +6,12 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Bundle
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.TextView
 import java.util.Locale
 
 class EventQrApplication : Application() {
@@ -45,6 +47,7 @@ class EventQrApplication : Application() {
                 when (view) {
                     is ImageButton -> styleBackImage(activity, view)
                     is ImageView -> styleBackImage(activity, view)
+                    is TextView -> styleBackText(activity, view)
                 }
             }
 
@@ -63,6 +66,7 @@ class EventQrApplication : Application() {
             view.setPadding(dp(activity, 10), dp(activity, 10), dp(activity, 10), dp(activity, 10))
             view.minimumWidth = dp(activity, 40)
             view.minimumHeight = dp(activity, 40)
+            view.contentDescription = "Back"
 
             view.layoutParams?.let { params ->
                 params.width = dp(activity, 40)
@@ -79,14 +83,49 @@ class EventQrApplication : Application() {
             }
         }
 
+        private fun styleBackText(activity: Activity, view: TextView) {
+            val icon = activity.getDrawable(R.drawable.back_btn)?.mutate() ?: return
+            val size = dp(activity, 20)
+            icon.setBounds(0, 0, size, size)
+            icon.setTint(Color.parseColor("#111827"))
+
+            view.text = ""
+            view.setCompoundDrawables(icon, null, null, null)
+            view.compoundDrawableTintList = ColorStateList.valueOf(Color.parseColor("#111827"))
+            view.gravity = Gravity.CENTER
+            view.background = null
+            view.setBackgroundResource(resolveBorderlessRipple(activity))
+            view.setPadding(dp(activity, 10), dp(activity, 10), dp(activity, 10), dp(activity, 10))
+            view.minimumWidth = dp(activity, 40)
+            view.minimumHeight = dp(activity, 40)
+            view.contentDescription = "Back"
+            view.includeFontPadding = false
+
+            view.layoutParams?.let { params ->
+                params.width = dp(activity, 40)
+                params.height = dp(activity, 40)
+                view.layoutParams = params
+            }
+        }
+
         private fun isBackView(activity: Activity, view: View?): Boolean {
             if (view == null) return false
             val description = view.contentDescription?.toString()?.trim()?.lowercase(Locale.ENGLISH)
             if (description == "back") return true
+
             val entryName = runCatching {
                 if (view.id != View.NO_ID) activity.resources.getResourceEntryName(view.id) else ""
             }.getOrDefault("").lowercase(Locale.ENGLISH)
-            return entryName.contains("back") && (view is ImageButton || view is ImageView)
+            val isBackId = entryName == "back" ||
+                entryName == "btnback" ||
+                entryName == "imgback" ||
+                entryName == "imageback" ||
+                entryName == "toolbarback" ||
+                entryName.endsWith("backbutton") ||
+                entryName.contains("back") && (view is ImageButton || view is ImageView)
+
+            val isArrowText = view is TextView && view.text?.toString()?.trim() in setOf("←", "‹", "<")
+            return isBackId || isArrowText
         }
 
         private fun resolveBorderlessRipple(activity: Activity): Int {
