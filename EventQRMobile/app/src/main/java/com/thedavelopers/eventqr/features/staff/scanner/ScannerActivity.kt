@@ -152,6 +152,8 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
         adapter = TransactionAdapter()
         staffUserId = SessionManager(this).getUserId()
 
+        normalizeChevron(eventChevron, false)
+        normalizeChevron(purposeChevron, false)
         purposeDropdown.visibility = View.GONE
         inlineCameraSurface.holder.addCallback(this)
         inlineCameraSurface.setZOrderMediaOverlay(false)
@@ -319,7 +321,7 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
             isOutsideTouchable = true
             elevation = dp(8).toFloat()
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setOnDismissListener { isEventDropdownOpen = false; eventChevron.text = "⌄" }
+            setOnDismissListener { isEventDropdownOpen = false; normalizeChevron(eventChevron, false) }
         }
     }
 
@@ -368,12 +370,12 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
             setPurposeDropdownOpen(false)
             if (eventPopup == null || selectedEventCard.width > 0 && eventPopup?.width != selectedEventCard.width) renderEventDropdown()
             isEventDropdownOpen = true
-            eventChevron.text = "⌃"
+            normalizeChevron(eventChevron, true)
             eventPopup?.showAsDropDown(selectedEventCard, 0, 0)
         } else {
             eventPopup?.dismiss()
             isEventDropdownOpen = false
-            eventChevron.text = "⌄"
+            normalizeChevron(eventChevron, false)
         }
     }
 
@@ -384,7 +386,7 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
             isOutsideTouchable = true
             elevation = dp(8).toFloat()
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setOnDismissListener { isPurposeDropdownOpen = false; purposeChevron.text = "⌄" }
+            setOnDismissListener { isPurposeDropdownOpen = false; normalizeChevron(purposeChevron, false) }
         }
     }
 
@@ -410,8 +412,8 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
 
     private fun setPurposeDropdownOpen(open: Boolean) {
         if (open && purposeOptions.isEmpty()) return
-        if (open) { setEventDropdownOpen(false); if (purposePopup == null || selectedPurposeCard.width > 0 && purposePopup?.width != selectedPurposeCard.width) renderPurposeDropdown(); isPurposeDropdownOpen = true; purposeChevron.text = "⌃"; purposePopup?.showAsDropDown(selectedPurposeCard, 0, 0) }
-        else { purposePopup?.dismiss(); isPurposeDropdownOpen = false; purposeChevron.text = "⌄" }
+        if (open) { setEventDropdownOpen(false); if (purposePopup == null || selectedPurposeCard.width > 0 && purposePopup?.width != selectedPurposeCard.width) renderPurposeDropdown(); isPurposeDropdownOpen = true; normalizeChevron(purposeChevron, true); purposePopup?.showAsDropDown(selectedPurposeCard, 0, 0) }
+        else { purposePopup?.dismiss(); isPurposeDropdownOpen = false; normalizeChevron(purposeChevron, false) }
     }
 
     private fun ScanPurposeResponse.displayName(): String = when (code) {
@@ -486,6 +488,12 @@ open class ScannerActivity : AppCompatActivity(), ScannerContract.View, SurfaceH
             putExtra(StaffScreenExtras.EXTRA_QR_VALUE, qrInput.text.toString().trim())
             putExtra(StaffScreenExtras.EXTRA_STAFF_USER_ID, staffUserId.orEmpty())
         })
+    }
+
+    private fun normalizeChevron(view: TextView, open: Boolean) {
+        view.includeFontPadding = false
+        view.translationY = -dp(1).toFloat()
+        view.text = if (open) "▴" else "▾"
     }
 
     private fun parseQrPayload(raw: String): ParsedQrPayload? {
